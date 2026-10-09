@@ -1,8 +1,19 @@
 -- Add commercial-property details and mixed-use unit types without deleting
 -- or rebuilding existing properties, units, contacts, or relationships.
--- Run this migration in the Supabase SQL Editor after deploying the app changes.
+-- Run after the existing properties and units tables are set up, before using
+-- the commercial property forms.
 
 begin;
+
+create or replace function public.property_integer_array_sum(input_values integer[])
+returns bigint
+language sql
+immutable
+parallel safe
+as $$
+  select coalesce(sum(value), 0)::bigint
+  from unnest(input_values) as values_table(value)
+$$;
 
 alter table public.properties
   add column if not exists office_in_building boolean,
@@ -64,7 +75,7 @@ alter table public.properties
         and room_count is null
         and cardinality(floor_unit_counts) = 0
       )
-    ),
+    ) not valid,
   add constraint properties_rental_details_check
     check (
       (
@@ -91,7 +102,7 @@ alter table public.properties
           (lease_term_type = 'until_termination' and lease_end_date is null)
         )
       )
-    ),
+    ) not valid,
   add constraint properties_commercial_details_check
     check (
       (
@@ -109,6 +120,7 @@ alter table public.properties
         property_type = 'retail_center'
         and office_in_building is null
         and office_floor is null
+        and commercial_space_type is not null
         and commercial_space_type in (
           'shopping_mall', 'strip_mall', 'shopping_center',
           'outlet_center', 'market_hall', 'other'
@@ -120,6 +132,7 @@ alter table public.properties
         property_type = 'restaurant_hospitality'
         and office_in_building is null
         and office_floor is null
+        and commercial_space_type is not null
         and commercial_space_type in (
           'restaurant', 'cafe', 'bar', 'hotel', 'event_venue', 'food_hall', 'other'
         )
@@ -150,7 +163,7 @@ alter table public.properties
         and commercial_space_type is null
         and cardinality(mixed_use_components) = 0
       )
-    );
+    ) not valid;
 
 alter table public.units
   add column if not exists commercial_space_type text;
@@ -165,7 +178,7 @@ alter table public.units
       'apartment', 'house', 'condo', 'townhouse', 'commercial',
       'office', 'retail_store', 'restaurant_hospitality', 'warehouse', 'other'
     )
-  );
+  ) not valid;
 
 alter table public.units
   drop constraint if exists units_commercial_space_details_check;
@@ -175,6 +188,7 @@ alter table public.units
   check (
     (
       unit_type = 'retail_store'
+      and commercial_space_type is not null
       and commercial_space_type in (
         'boutique', 'convenience_store', 'supermarket', 'department_store',
         'pharmacy', 'showroom', 'other'
@@ -183,6 +197,7 @@ alter table public.units
     or
     (
       unit_type = 'restaurant_hospitality'
+      and commercial_space_type is not null
       and commercial_space_type in (
         'restaurant', 'cafe', 'bar', 'hotel', 'event_venue', 'food_hall', 'other'
       )
@@ -192,6 +207,6 @@ alter table public.units
       unit_type not in ('retail_store', 'restaurant_hospitality')
       and commercial_space_type is null
     )
-  );
+  ) not valid;
 
 commit;

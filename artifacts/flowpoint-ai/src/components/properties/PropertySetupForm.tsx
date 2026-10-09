@@ -257,6 +257,21 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
   const mixedUse = subtype === 'mixed_use_development';
   const propertyCanRent = singleFamily || (commercial && !mixedUse);
   const selectedFacilities = useMemo(() => new Set(facilities), [facilities]);
+  const sharedFacilityOptions = useMemo(() => {
+    if (mixedUse) {
+      const options = mixedUseComponents.includes('apartment')
+        ? [...HOME_FACILITIES, ...APARTMENT_BUILDING_FACILITIES, ...COMMERCIAL_FACILITIES]
+        : [...COMMERCIAL_FACILITIES];
+      return Array.from(new Map(options.map((facility) => [facility.value, facility])).values());
+    }
+    return commercial
+      ? [...COMMERCIAL_FACILITIES]
+      : [...HOME_FACILITIES, ...(apartment ? APARTMENT_BUILDING_FACILITIES : [])];
+  }, [mixedUse, mixedUseComponents, commercial, apartment]);
+  const propertyFacilities = useMemo(
+    () => facilities.filter((facility) => sharedFacilityOptions.some((option) => option.value === facility)),
+    [facilities, sharedFacilityOptions],
+  );
   const previewProperty = useMemo<Property>(() => ({
     ...blankProperty,
     ...(property ?? {}),
@@ -271,7 +286,7 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
     floor_count: singleFamily || apartment || mixedUse ? (floorCount ? Number(floorCount) : null) : null,
     floor_unit_counts: apartment ? floorCapacities.map((capacity) => Number(capacity) || 0) : [],
     room_count: singleFamily ? (roomCount ? Number(roomCount) : null) : null,
-    facilities,
+    facilities: propertyFacilities,
     custom_facilities: customFacilities,
     office_in_building: officeBuilding ? officeInBuilding : null,
     office_floor: officeBuilding && officeInBuilding ? Number(officeFloor) : null,
@@ -282,7 +297,7 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
     lease_term_type: propertyCanRent && rented ? renter.lease_term_type : null,
     lease_start_date: propertyCanRent && rented ? renter.lease_start_date || null : null,
     lease_end_date: propertyCanRent && rented && renter.lease_term_type === 'fixed' ? renter.lease_end_date || null : null,
-  }), [property, form, category, subtype, multifamily, apartment, singleFamily, officeBuilding, officeInBuilding, officeFloor, retailCenter, hospitalitySpace, commercialSpaceType, mixedUse, mixedUseComponents, propertyCanRent, floorCount, floorCapacities, roomCount, facilities, customFacilities, rented, renter]);
+  }), [property, form, category, subtype, multifamily, apartment, singleFamily, officeBuilding, officeInBuilding, officeFloor, retailCenter, hospitalitySpace, commercialSpaceType, mixedUse, mixedUseComponents, propertyCanRent, floorCount, floorCapacities, roomCount, propertyFacilities, customFacilities, rented, renter]);
   const inlineOwnerData = useMemo(() => {
     const syntheticContacts: Contact[] = [];
     const relations: ContactPropertyRelationship[] = [];
@@ -404,7 +419,9 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
         ? existingUnits
         : pendingUnits.map((item) => item.draft);
       const unitTypes = new Set(mixedUnits.map((unit) => unit.unit_type).filter(Boolean));
-      if (!property && mixedUseComponents.some((component) => !unitTypes.has(component))) {
+      if (!property && pendingUnits.some(({ draft }) => draft.unit_type && !mixedUseComponents.includes(draft.unit_type))) {
+        next.inline_units = 'Remove pending spaces for uses you unchecked, or select those uses again.';
+      } else if (!property && mixedUseComponents.some((component) => !unitTypes.has(component))) {
         next.inline_units = 'Add at least one mapped unit for every selected use.';
       }
       if (property && existingUnits.some((unit) => unit.unit_type && !mixedUseComponents.includes(unit.unit_type))) {
@@ -470,7 +487,7 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
       country: form.country?.trim() || null,
       units_count: multifamily || apartment ? Number(form.units_count) : null,
       property_category: category,
-      facilities,
+      facilities: propertyFacilities,
       custom_facilities: customFacilities,
       room_count: singleFamily ? Number(roomCount) : null,
       floor_count: singleFamily || apartment || mixedUse ? Number(floorCount) : null,
@@ -642,11 +659,11 @@ export default function PropertySetupForm({ property, contacts, initialOwners, i
                       </>}
                     </section>}
 
-                    {(singleFamily || multifamily || apartment || commercial) && (
+                    {(singleFamily || multifamily || apartment || commercial || mixedUse) && (
                       <section className="mb-7" data-testid="section-property-facilities">
-                        <SectionHeading index="02" eyebrow="Shared spaces" title="Facilities & features" description={commercial ? 'Select the commercial property facilities. You can also add a facility that isn’t listed.' : apartment ? 'Select the building amenities and any home-style shared facilities.' : 'Select what’s available. You can add a facility that isn’t listed.'} />
+                        <SectionHeading index="02" eyebrow="Shared spaces" title="Facilities & features" description={mixedUse ? 'Select shared facilities for the uses included in this property. You can also add a facility that isn’t listed.' : commercial ? 'Select the commercial property facilities. You can also add a facility that isn’t listed.' : apartment ? 'Select the building amenities and any home-style shared facilities.' : 'Select what’s available. You can add a facility that isn’t listed.'} />
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {(commercial ? COMMERCIAL_FACILITIES : [...HOME_FACILITIES, ...(apartment ? APARTMENT_BUILDING_FACILITIES : [])]).map((facility) => {
+                          {sharedFacilityOptions.map((facility) => {
                             const checked = selectedFacilities.has(facility.value);
                             return <button key={facility.value} type="button" data-testid={`button-facility-${facility.value}`} aria-pressed={checked} onClick={() => toggleFacility(facility.value)} className={`flex min-h-10 items-center gap-2 rounded-[9px] border px-3 text-left text-[11px] font-medium transition-colors ${checked ? 'border-[#b9cabe] bg-[#edf4ee] text-[#4d6a59]' : 'border-[#e7e4de] bg-white text-[#69665f] hover:border-[#ccd7ce] hover:bg-[#f8faf7]'}`}><span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${checked ? 'border-[#63816e] bg-[#63816e] text-white' : 'border-[#d5d2ca] bg-white'}`}>{checked && <Check size={11} />}</span>{facility.label}</button>;
                           })}

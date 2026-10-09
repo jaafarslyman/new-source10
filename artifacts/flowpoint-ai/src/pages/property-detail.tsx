@@ -9,7 +9,17 @@ import { useLocation, useParams } from 'wouter';
 import { useAuth } from '@/hooks/useAuth';
 import AppLayout from '@/components/AppLayout';
 import { supabase } from '@/lib/supabase';
-import { propertyAddress, propertyCategoryLabel, propertyStatusLabel, propertyTypeLabel, type Property, type PropertyDraft } from '@/lib/propertiesTypes';
+import {
+  HOSPITALITY_SPACE_TYPES,
+  MIXED_USE_COMPONENTS,
+  propertyAddress,
+  propertyCategoryLabel,
+  propertyStatusLabel,
+  propertyTypeLabel,
+  RETAIL_CENTER_TYPES,
+  type Property,
+  type PropertyDraft,
+} from '@/lib/propertiesTypes';
 import PropertySetupForm, { type PropertyOwnerDraft, type PropertyRenterDraft } from '@/components/properties/PropertySetupForm';
 import PropertyUnitManager, { type UnitSavePayload } from '@/components/PropertyUnitManager';
 import { formatMoney, type Unit } from '@/lib/unitsTypes';
@@ -22,6 +32,27 @@ function StatusPill({ status }: { status: string | null }) {
 
 function InfoRow({ label, value }: { label: string; value: string | number | null | undefined }) {
   return <div className="border-b border-[#f0eeeb] py-3 last:border-0"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[#9b968d]">{label}</p><p data-testid={`value-property-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} className="mt-1 whitespace-pre-wrap text-[13px] leading-[1.5] text-[#37342f]">{value === null || value === undefined || value === '' ? <span className="italic text-[#b1aca4]">Unavailable</span> : value}</p></div>;
+}
+
+function PropertySubtypeRows({ property }: { property: Property }) {
+  if (property.property_type === 'office_building') {
+    return <>
+      <InfoRow label="Inside a building" value={property.office_in_building === null ? null : property.office_in_building ? 'Yes' : 'No'} />
+      {property.office_in_building && <InfoRow label="Office floor" value={property.office_floor === 0 ? 'Ground floor' : property.office_floor} />}
+    </>;
+  }
+  if (property.property_type === 'retail_center' || property.property_type === 'restaurant_hospitality') {
+    const choices = property.property_type === 'retail_center' ? RETAIL_CENTER_TYPES : HOSPITALITY_SPACE_TYPES;
+    const selectedType = choices.find((choice) => choice.value === property.commercial_space_type)?.label ?? property.commercial_space_type;
+    return <InfoRow label={property.property_type === 'retail_center' ? 'Retail center type' : 'Hospitality space type'} value={selectedType} />;
+  }
+  if (property.property_type === 'mixed_use_development') {
+    const uses = property.mixed_use_components
+      ?.map((value) => MIXED_USE_COMPONENTS.find((component) => component.value === value)?.label ?? value)
+      .join(', ');
+    return <InfoRow label="Included uses" value={uses} />;
+  }
+  return null;
 }
 
 function OwnerSection({ property, contacts, ownerships }: { property: Property; contacts: Contact[]; ownerships: ContactPropertyRelationship[] }) {
@@ -191,7 +222,7 @@ export default function PropertyDetailPage() {
         ownership_scope: owner.ownership_scope || null,
       });
     }
-    if (draft.property_type === 'single_family_home' && renterDraft) {
+    if (['single_family_home', 'office_building', 'retail_center', 'restaurant_hospitality'].includes(draft.property_type ?? '') && renterDraft) {
       const contact = await resolveContact(renterDraft, 'tenant', resolvedContacts);
       rows.push({
         contact_id: contact.id,
@@ -230,11 +261,9 @@ export default function PropertyDetailPage() {
     const resolvedContacts = [...contacts];
     try {
       const rows: Array<Record<string, unknown>> = [];
-      if (payload.draft.unit_type === 'house') {
-        for (const owner of payload.owners) {
-          const contact = await resolveContact(owner, 'owner', resolvedContacts);
-          rows.push({ contact_id: contact.id, property_id: saved.property_id, unit_id: saved.id, relationship_type: 'owner', start_date: null, end_date: null, notes: null, ownership_percentage: Number(owner.ownership_percentage), ownership_scope: null });
-        }
+      for (const owner of payload.owners) {
+        const contact = await resolveContact(owner, 'owner', resolvedContacts);
+        rows.push({ contact_id: contact.id, property_id: saved.property_id, unit_id: saved.id, relationship_type: 'owner', start_date: null, end_date: null, notes: null, ownership_percentage: Number(owner.ownership_percentage), ownership_scope: null });
       }
       if (payload.renter) {
         const contact = await resolveContact(payload.renter, 'tenant', resolvedContacts);
@@ -278,7 +307,8 @@ export default function PropertyDetailPage() {
   const propertyUnits = units.filter((unit) => unit.property_id === property?.id);
   const propertyOwners = ownerships.filter((row) => row.property_id === property?.id && !row.unit_id && row.relationship_type === 'owner');
   const isSingleHome = property?.property_type === 'single_family_home';
-  const totalUnits = isSingleHome ? 1 : property?.units_count ?? null;
+  const isMixedUse = property?.property_type === 'mixed_use_development';
+  const totalUnits = isSingleHome ? 1 : isMixedUse ? propertyUnits.length : property?.units_count ?? null;
   const occupiedUnits = isSingleHome ? Number(Boolean(property?.is_rented)) : propertyUnits.filter((unit) => unit.status === 'occupied').length;
   const vacantUnits = isSingleHome ? Number(!property?.is_rented) : propertyUnits.filter((unit) => unit.status === 'vacant').length;
   const buildingOwnerNames = propertyOwners.map((row) => contacts.find((contact) => String(contact.id) === String(row.contact_id))?.name).filter(Boolean).join(', ');
@@ -292,7 +322,7 @@ export default function PropertyDetailPage() {
       {loading && <div data-testid="loading-property-detail" className="animate-pulse"><div className="h-8 w-64 rounded bg-[#eae7e2]" /><div className="mt-3 h-4 w-96 rounded bg-[#eeebe7]" /><div className="mt-8 grid gap-4 lg:grid-cols-[1.2fr_.8fr]"><div className="h-[350px] rounded-[14px] bg-[#eeebe7]" /><div className="h-[350px] rounded-[14px] bg-[#eeebe7]" /></div></div>}
       {!loading && error && <div data-testid="error-property-detail" className="flex flex-col items-center justify-center rounded-[14px] border border-[#f0c8c3] bg-[#fff9f8] px-6 py-20 text-center"><AlertCircle size={24} className="text-[#b33d32]" /><p className="mt-3 text-[13px] font-semibold text-[#4d2c28]">Property could not be loaded</p><p className="mt-1 max-w-[380px] text-[12px] text-[#9d716b]">{error}</p><div className="mt-4 flex gap-2"><button data-testid="button-retry-property-detail" onClick={loadProperty} className="flex h-8 items-center gap-2 rounded-[8px] border border-[#e6c2bd] px-3 text-[12px] font-medium text-[#8e3a31] hover:bg-[#fff0ee]"><RefreshCw size={12} />Try again</button><button data-testid="button-return-properties-error" onClick={() => navigate('/properties')} className="h-8 rounded-[8px] bg-[#151412] px-3 text-[12px] font-medium text-white">Back to properties</button></div></div>}
       {!loading && !error && property && <><div className="mb-6"><div className="flex flex-wrap items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#eeebe5] text-[#706b62]"><Building2 size={18} strokeWidth={1.6} /></span><div><div className="flex flex-wrap items-center gap-2"><h1 data-testid="heading-property-detail" className="text-[21px] font-semibold tracking-[-.025em] text-[#151412]">{property.name}</h1><StatusPill status={property.status} /></div><p data-testid="text-property-detail-address" className="mt-1 flex items-center gap-1.5 text-[12px] text-[#858078]"><MapPin size={12} />{propertyAddress(property) || 'Address unavailable'}</p></div></div></div>
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><section className="rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-3 flex items-center justify-between"><div><h2 className="text-[13px] font-semibold text-[#302d28]">Property overview</h2><p className="mt-1 text-[11px] text-[#9a958d]">The essentials your team needs at a glance.</p></div><Building2 size={16} className="text-[#aaa59d]" /></div><div className="grid gap-x-7 sm:grid-cols-2"><InfoRow label="Category" value={propertyCategoryLabel(property.property_category)} /><InfoRow label="Property type" value={propertyTypeLabel(property.property_type)} /><InfoRow label="Units" value={totalUnits} /><InfoRow label="Units recorded" value={propertyUnits.length} /><InfoRow label="Building floors" value={property.floor_count} /><InfoRow label="Rooms" value={property.room_count} /><InfoRow label="Floor capacities" value={property.floor_unit_counts?.map((count, index) => `${index === 0 ? 'Ground floor' : `Floor ${index}`}: ${count}`).join(' · ')} /><InfoRow label="Address line 1" value={property.address_line1} /><InfoRow label="Address line 2" value={property.address_line2} /><InfoRow label="City" value={property.city} /><InfoRow label="State / region" value={property.state} /><InfoRow label="Postal code" value={property.postal_code} /><InfoRow label="Country" value={property.country} /></div><div className="mt-3 border-t border-[#f0eeeb] pt-1"><InfoRow label="Description" value={property.description} /></div></section>
+         <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><section className="rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-3 flex items-center justify-between"><div><h2 className="text-[13px] font-semibold text-[#302d28]">Property overview</h2><p className="mt-1 text-[11px] text-[#9a958d]">The essentials your team needs at a glance.</p></div><Building2 size={16} className="text-[#aaa59d]" /></div><div className="grid gap-x-7 sm:grid-cols-2"><InfoRow label="Category" value={propertyCategoryLabel(property.property_category)} /><InfoRow label="Property type" value={propertyTypeLabel(property.property_type)} /><PropertySubtypeRows property={property} /><InfoRow label="Units" value={totalUnits} /><InfoRow label="Units recorded" value={propertyUnits.length} /><InfoRow label="Building floors" value={property.floor_count} /><InfoRow label="Rooms" value={property.room_count} /><InfoRow label="Floor capacities" value={property.floor_unit_counts?.map((count, index) => `${index === 0 ? 'Ground floor' : `Floor ${index}`}: ${count}`).join(' · ')} /><InfoRow label="Address line 1" value={property.address_line1} /><InfoRow label="Address line 2" value={property.address_line2} /><InfoRow label="City" value={property.city} /><InfoRow label="State / region" value={property.state} /><InfoRow label="Postal code" value={property.postal_code} /><InfoRow label="Country" value={property.country} /></div><div className="mt-3 border-t border-[#f0eeeb] pt-1"><InfoRow label="Description" value={property.description} /></div></section>
           <section className="rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-3 flex items-center justify-between"><div><h2 className="text-[13px] font-semibold text-[#302d28]">Workspace signals</h2><p className="mt-1 text-[11px] text-[#9a958d]">Connected records will appear here as they become available.</p></div><Zap size={16} className="text-[#aaa59d]" /></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1"><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Users size={14} />Owner</span><span data-testid="value-property-owner" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Users size={14} />Manager</span><span data-testid="value-property-manager" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Building2 size={14} />Occupied units</span><span data-testid="value-property-occupied-units" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><Building2 size={14} />Vacant units</span><span data-testid="value-property-vacant-units" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div><div className="flex items-center justify-between rounded-[9px] bg-[#faf9f7] px-3 py-2.5"><span className="flex items-center gap-2 text-[11px] text-[#77736d]"><ShieldAlert size={14} />Active issues</span><span data-testid="value-property-active-issues" className="text-[11px] italic text-[#aaa59d]">Unavailable</span></div></div></section></div>
           <OwnerSection property={property} contacts={contacts} ownerships={ownerships} />
           <section className="mt-4 rounded-[14px] border border-[#e9e6e1] bg-white p-5"><div className="mb-4"><h2 className="text-[13px] font-semibold text-[#302d28]">Property specifications and rental</h2><p className="mt-1 text-[11px] text-[#9a958d]">Facilities, tenancy terms, and operating notes.</p></div><div className="grid gap-x-7 sm:grid-cols-2"><InfoRow label="Facilities" value={[...(property.facilities ?? []), ...(property.custom_facilities ?? [])].join(', ')} /><InfoRow label="Rented" value={property.is_rented ? 'Yes' : isSingleHome ? 'No' : null} /><InfoRow label="Renter" value={property.is_rented ? propertyRenterName ?? (propertyRenter ? 'Contact unavailable' : 'Renter not linked') : null} /><InfoRow label="Monthly rent (USD)" value={property.is_rented ? formatMoney(property.monthly_rent) : null} /><InfoRow label="Lease duration" value={property.is_rented ? property.lease_term_type === 'until_termination' ? 'Until termination' : property.lease_term_type === 'fixed' ? 'Fixed term' : null : null} /><InfoRow label="Lease start" value={property.is_rented ? property.lease_start_date : null} /><InfoRow label="Lease end" value={property.is_rented && property.lease_term_type === 'fixed' ? property.lease_end_date : null} /><InfoRow label="Amenities" value={property.amenities} /><InfoRow label="Property rules" value={property.property_rules} /><InfoRow label="Parking information" value={property.parking_information} /><InfoRow label="Access information" value={property.access_information} /><InfoRow label="Utilities information" value={property.utilities_information} /><InfoRow label="Emergency information" value={property.emergency_information} /><div className="sm:col-span-2"><InfoRow label="Internal notes" value={property.notes} /></div></div></section>

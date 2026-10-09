@@ -8,7 +8,12 @@ import AppLayout from '@/components/AppLayout';
 import FlowPointSelect from '@/components/FlowPointSelect';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { propertyAddress, type Property } from '@/lib/propertiesTypes';
+import {
+  HOSPITALITY_SPACE_TYPES,
+  propertyAddress,
+  RETAIL_UNIT_TYPES,
+  type Property,
+} from '@/lib/propertiesTypes';
 import {
   blankUnit, formatDate, formatMoney, unitStatusLabel, unitTypeLabel,
   UNIT_STATUSES, UNIT_TYPES, type Unit, type UnitDraft,
@@ -73,12 +78,23 @@ function UnitForm({ unit, properties, onSave, onClose }: {
   const [saving, setSaving] = useState(false);
   const set = (key: keyof UnitDraft, value: string | number | null) => setForm((current) => ({ ...current, [key]: value }));
   const propertyOptions = properties.map((property) => ({ value: property.id, label: property.name, secondary: propertyAddress(property) || 'Address unavailable' }));
+  const selectedProperty = properties.find((property) => property.id === form.property_id);
+  const isMixedUseProperty = selectedProperty?.property_type === 'mixed_use_development';
+  const unitTypeOptions = isMixedUseProperty
+    ? UNIT_TYPES.filter((type) => selectedProperty.mixed_use_components?.includes(type.value))
+    : UNIT_TYPES;
+  const needsCommercialSubtype = form.unit_type === 'retail_store' || form.unit_type === 'restaurant_hospitality';
 
   const submit = async () => {
     const next: Record<string, string> = {};
     if (!form.unit_number.trim()) next.unit_number = 'Unit number or name is required';
     if (!form.property_id) next.property_id = 'Select a property';
     if (form.floor !== null && (Number.isNaN(form.floor) || form.floor < 0)) next.floor = 'Enter zero or more';
+    if (isMixedUseProperty && !unitTypeOptions.some((type) => type.value === form.unit_type)) next.unit_type = 'Choose a use included in this property';
+    if (isMixedUseProperty && form.floor === null) next.floor = 'Choose the building floor for this space';
+    if (isMixedUseProperty && form.floor !== null && selectedProperty?.floor_count && form.floor >= selectedProperty.floor_count) next.floor = `Choose a floor from 0 to ${selectedProperty.floor_count - 1}`;
+    if (isMixedUseProperty && form.unit_type === 'apartment' && (form.room_count === null || !Number.isInteger(form.room_count) || form.room_count < 1)) next.room_count = 'Enter at least one room';
+    if (needsCommercialSubtype && !form.commercial_space_type) next.commercial_space_type = 'Choose a specific space type';
     if (form.bedrooms !== null && (Number.isNaN(form.bedrooms) || form.bedrooms < 0)) next.bedrooms = 'Enter zero or more';
     if (form.bathrooms !== null && (Number.isNaN(form.bathrooms) || form.bathrooms < 0)) next.bathrooms = 'Enter zero or more';
     if (form.square_footage !== null && (Number.isNaN(form.square_footage) || form.square_footage < 0)) next.square_footage = 'Enter zero or more';
@@ -119,11 +135,13 @@ function UnitForm({ unit, properties, onSave, onClose }: {
     <div className="max-h-[calc(94vh-72px)] overflow-y-auto px-5 py-5">
       <section><div className="mb-3"><p className="text-[12px] font-semibold text-[#35322e]">Basic information</p><p className="mt-1 text-[11px] text-[#9c978e]">Identify the unit and connect it to a property.</p></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Unit number / name"><input data-testid="input-unit-number" autoFocus className={inputClass} value={form.unit_number} onChange={(event) => set('unit_number', event.target.value)} placeholder="e.g. 2B or Rear Cottage" /><FormError message={errors.unit_number} /></Field>
-        <Field label="Property"><FlowPointSelect testId="select-unit-property" value={form.property_id} onChange={(value) => set('property_id', value)} placeholder={properties.length ? 'Select a property' : 'No properties available'} options={propertyOptions} disabled={!properties.length} emptyLabel="No properties available. Add a property first." /><FormError message={errors.property_id} /></Field>
-        <Field label="Unit type"><FlowPointSelect testId="select-unit-type" value={form.unit_type ?? ''} onChange={(value) => set('unit_type', value)} placeholder="Select a type" options={UNIT_TYPES.map((type) => ({ value: type.value, label: type.label }))} /></Field>
-        <Field label="Floor" hint="optional"><input data-testid="input-unit-floor" type="number" min="0" step="1" className={inputClass} value={form.floor ?? ''} onChange={(event) => set('floor', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 2" /><FormError message={errors.floor} /></Field>
+        <Field label="Property"><FlowPointSelect testId="select-unit-property" value={form.property_id} onChange={(value) => { set('property_id', value); set('floor', null); }} placeholder={properties.length ? 'Select a property' : 'No properties available'} options={propertyOptions} disabled={!properties.length} emptyLabel="No properties available. Add a property first." /><FormError message={errors.property_id} /></Field>
+        <Field label="Unit type"><FlowPointSelect testId="select-unit-type" value={form.unit_type ?? ''} onChange={(value) => { set('unit_type', value); set('commercial_space_type', null); }} placeholder="Select a type" options={unitTypeOptions.map((type) => ({ value: type.value, label: type.label }))} /><FormError message={errors.unit_type} /></Field>
+        {needsCommercialSubtype && <Field label={form.unit_type === 'retail_store' ? 'Retail store type' : 'Hospitality space type'}><FlowPointSelect testId="select-unit-commercial-space-type" value={form.commercial_space_type ?? ''} onChange={(value) => set('commercial_space_type', value)} placeholder="Choose a space type" options={form.unit_type === 'retail_store' ? [...RETAIL_UNIT_TYPES] : [...HOSPITALITY_SPACE_TYPES]} /><FormError message={errors.commercial_space_type} /></Field>}
+        <Field label={isMixedUseProperty ? 'Building floor' : 'Floor'} hint={isMixedUseProperty ? 'required · 0 is ground floor' : 'optional'}><input data-testid="input-unit-floor" type="number" min="0" max={isMixedUseProperty && selectedProperty.floor_count ? selectedProperty.floor_count - 1 : undefined} step="1" className={inputClass} value={form.floor ?? ''} onChange={(event) => set('floor', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 2" /><FormError message={errors.floor} /></Field>
         <Field label="Bedrooms" hint="optional"><input data-testid="input-unit-bedrooms" type="number" min="0" step="0.5" className={inputClass} value={form.bedrooms ?? ''} onChange={(event) => set('bedrooms', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 2" /><FormError message={errors.bedrooms} /></Field>
         <Field label="Bathrooms" hint="optional"><input data-testid="input-unit-bathrooms" type="number" min="0" step="0.5" className={inputClass} value={form.bathrooms ?? ''} onChange={(event) => set('bathrooms', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 1.5" /><FormError message={errors.bathrooms} /></Field>
+        {isMixedUseProperty && form.unit_type === 'apartment' && <Field label="Rooms" hint="required"><input data-testid="input-unit-room-count" type="number" min="1" step="1" className={inputClass} value={form.room_count ?? ''} onChange={(event) => set('room_count', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 4" /><FormError message={errors.room_count} /></Field>}
         <Field label="Square footage" hint="optional"><input data-testid="input-unit-square-footage" type="number" min="0" step="1" className={inputClass} value={form.square_footage ?? ''} onChange={(event) => set('square_footage', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 850" /><FormError message={errors.square_footage} /></Field>
         <div className="sm:col-span-2"><Field label="Description" hint="optional"><textarea data-testid="input-unit-description" className={textAreaClass} rows={3} value={form.description ?? ''} onChange={(event) => set('description', event.target.value)} placeholder="A short description for your team" /></Field></div>
       </div></section>

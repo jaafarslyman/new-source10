@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Check, DoorOpen, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import FlowPointSelect from '@/components/FlowPointSelect';
 import {
+  APARTMENT_BUILDING_FACILITIES,
   COMMERCIAL_FACILITIES,
   HOSPITALITY_SPACE_TYPES,
   HOME_FACILITIES,
@@ -213,8 +214,33 @@ function UnitForm({
   const occupiedTotal = units.filter((item) => item.id !== unit?.id).length;
   const duplicateUnit = units.some((item) => item.id !== unit?.id && item.unit_number.trim().toLocaleLowerCase() === draft.unit_number.trim().toLocaleLowerCase());
   const selectedFacilities = useMemo(() => new Set(draft.facilities ?? []), [draft.facilities]);
+  const unitFacilityOptions = useMemo(() => {
+    const options = mixedUse
+      ? draft.unit_type === 'apartment'
+        ? [...HOME_FACILITIES, ...APARTMENT_BUILDING_FACILITIES]
+        : [...COMMERCIAL_FACILITIES]
+      : apartmentBuilding
+        ? [...HOME_FACILITIES, ...APARTMENT_BUILDING_FACILITIES]
+        : [...HOME_FACILITIES];
+    return Array.from(new Map(options.map((facility) => [facility.value, facility])).values());
+  }, [mixedUse, draft.unit_type, apartmentBuilding]);
 
   const change = (key: keyof UnitDraft, value: string | number | null | string[]) => setDraft((current) => ({ ...current, [key]: value }));
+  const changeMixedUseType = (value: string) => {
+    const nextFacilities = value === 'apartment'
+      ? [...HOME_FACILITIES, ...APARTMENT_BUILDING_FACILITIES]
+      : [...COMMERCIAL_FACILITIES];
+    const allowedFacilities = new Set<string>(nextFacilities.map((facility) => facility.value));
+    setDraft((current) => ({
+      ...current,
+      unit_type: value,
+      commercial_space_type: null,
+      room_count: value === 'apartment' ? current.room_count : null,
+      bedrooms: value === 'apartment' ? current.bedrooms : null,
+      bathrooms: value === 'apartment' ? current.bathrooms : null,
+      facilities: (current.facilities ?? []).filter((facility) => allowedFacilities.has(facility)),
+    }));
+  };
   const changeOwner = (index: number, patch: Partial<PropertyOwnerDraft>) => setOwners((current) => current.map((owner, i) => i === index ? { ...owner, ...patch } : owner));
   const changeRenter = (patch: Partial<PropertyRenterDraft>) => setRenter((current) => ({ ...current, ...patch }));
   const toggleFacility = (facility: string) => change('facilities', selectedFacilities.has(facility) ? [...selectedFacilities].filter((item) => item !== facility) : [...selectedFacilities, facility]);
@@ -293,8 +319,12 @@ function UnitForm({
       commercial_space_type: mixedUse && ['retail_store', 'restaurant_hospitality'].includes(draft.unit_type ?? '') ? draft.commercial_space_type : null,
       floor: apartmentBuilding || mixedUse ? draft.floor : null,
       floor_count: multifamily ? Number(draft.floor_count) : null,
-      room_count: mixedUse ? (draft.room_count === null ? null : Number(draft.room_count)) : Number(draft.room_count),
-      facilities: (draft.facilities ?? []).filter(Boolean),
+      room_count: mixedUse
+        ? draft.unit_type === 'apartment' && draft.room_count !== null ? Number(draft.room_count) : null
+        : Number(draft.room_count),
+      bedrooms: mixedUse && draft.unit_type !== 'apartment' ? null : draft.bedrooms,
+      bathrooms: mixedUse && draft.unit_type !== 'apartment' ? null : draft.bathrooms,
+      facilities: (draft.facilities ?? []).filter((facility) => unitFacilityOptions.some((option) => option.value === facility)),
       custom_facilities: (draft.custom_facilities ?? []).filter(Boolean),
       status: rented ? 'occupied' : 'vacant',
       monthly_rent: rented ? Number(renter.monthly_rent) : null,
@@ -339,9 +369,9 @@ function UnitForm({
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-7">
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2"><Field label={mixedUse ? 'Space name or identifier' : 'Unit name or number'} required><input autoFocus data-testid="input-unit-name" className={inputClass} value={draft.unit_number} onChange={(event) => change('unit_number', event.target.value)} placeholder={mixedUse ? 'e.g. Suite 12 or West warehouse' : 'e.g. 1 or 2A'} /></Field><FormError message={errors.unit_number} /></div>
-          {mixedUse && <Field label="Space type" required><FlowPointSelect testId="select-mixed-use-unit-type" value={draft.unit_type ?? ''} onChange={(value) => setDraft((current) => ({ ...current, unit_type: value, commercial_space_type: null }))} placeholder="Choose a selected use" options={MIXED_USE_COMPONENTS.filter((component) => property.mixed_use_components?.includes(component.value)).map((component) => ({ value: component.value, label: component.label }))} /><FormError message={errors.unit_type} /></Field>}
+          {mixedUse && <Field label="Space type" required><FlowPointSelect testId="select-mixed-use-unit-type" value={draft.unit_type ?? ''} onChange={changeMixedUseType} placeholder="Choose a selected use" options={MIXED_USE_COMPONENTS.filter((component) => property.mixed_use_components?.includes(component.value)).map((component) => ({ value: component.value, label: component.label }))} /><FormError message={errors.unit_type} /></Field>}
           {mixedUse && (draft.unit_type === 'retail_store' || draft.unit_type === 'restaurant_hospitality') && <Field label={draft.unit_type === 'retail_store' ? 'Retail store type' : 'Hospitality space type'} required><FlowPointSelect testId="select-mixed-use-commercial-space-type" value={draft.commercial_space_type ?? ''} onChange={(value) => change('commercial_space_type', value)} placeholder="Choose a space type" options={draft.unit_type === 'retail_store' ? [...RETAIL_UNIT_TYPES] : [...HOSPITALITY_SPACE_TYPES]} /><FormError message={errors.commercial_space_type} /></Field>}
-          <Field label="Rooms" required={!mixedUse || draft.unit_type === 'apartment'}><input data-testid="input-unit-room-count" className={inputClass} type="number" min="1" step="1" value={draft.room_count ?? ''} onChange={(event) => change('room_count', event.target.value === '' ? null : Number(event.target.value))} placeholder={mixedUse && draft.unit_type !== 'apartment' ? 'Optional' : 'e.g. 4'} /><FormError message={errors.room_count} /></Field>
+          {(!mixedUse || draft.unit_type === 'apartment') && <Field label="Rooms" required><input data-testid="input-unit-room-count" className={inputClass} type="number" min="1" step="1" value={draft.room_count ?? ''} onChange={(event) => change('room_count', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 4" /><FormError message={errors.room_count} /></Field>}
           {multifamily && <Field label="Interior floors" required><input data-testid="input-unit-floor-count" className={inputClass} type="number" min="1" step="1" value={draft.floor_count ?? ''} onChange={(event) => change('floor_count', event.target.value === '' ? null : Number(event.target.value))} placeholder="e.g. 2" /><FormError message={errors.floor_count} /></Field>}
           {(apartmentBuilding || mixedUse) && <Field label="Building floor" required><FlowPointSelect testId="select-unit-building-floor" value={draft.floor === null ? '' : String(draft.floor)} onChange={(value) => change('floor', value === '' ? null : Number(value))} placeholder="Choose a floor" options={floorOptions} /><FormError message={errors.floor} /></Field>}
           {mixedUse && <Field label="Square footage"><input data-testid="input-unit-square-footage" className={inputClass} type="number" min="0" step="1" value={draft.square_footage ?? ''} onChange={(event) => change('square_footage', event.target.value === '' ? null : Number(event.target.value))} placeholder="Optional" /></Field>}
@@ -354,7 +384,7 @@ function UnitForm({
         <section className="border-t border-[#ebe8e2] pt-5" data-testid="section-unit-facilities">
           <div className="mb-3"><p className="text-[12px] font-semibold text-[#35332e]">Unit facilities</p><p className="mt-1 text-[10px] text-[#938f86]">Shared property facilities stay on the property. Select features specific to this unit.</p></div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {(mixedUse ? COMMERCIAL_FACILITIES : HOME_FACILITIES).map((facility) => {
+            {unitFacilityOptions.map((facility) => {
               const selected = selectedFacilities.has(facility.value);
               return <button key={facility.value} type="button" data-testid={`button-unit-facility-${facility.value}`} aria-pressed={selected} onClick={() => toggleFacility(facility.value)} className={`flex min-h-9 items-center gap-2 rounded-[8px] border px-2.5 text-left text-[10px] font-medium ${selected ? 'border-[#b9cabe] bg-[#edf4ee] text-[#4d6a59]' : 'border-[#e7e4de] bg-white text-[#69665f] hover:bg-[#f8faf7]'}`}><span className={`flex h-4 w-4 items-center justify-center rounded-[4px] border ${selected ? 'border-[#63816e] bg-[#63816e] text-white' : 'border-[#d5d2ca] bg-white'}`}>{selected && <Check size={10} />}</span>{facility.label}</button>;
             })}
@@ -501,8 +531,11 @@ export default function PropertyUnitManager({
           const tenantName = contacts.find((contact) => String(contact.id) === String(tenant?.contact_id))?.name;
           const facilitySummary = [...(unit.facilities ?? []), ...(unit.custom_facilities ?? [])].slice(0, 3).join(', ');
           const floorLabel = unit.floor === null ? null : unit.floor === 0 ? 'Ground floor' : `Floor ${unit.floor}`;
+          const commercialSubtypeLabel = unit.commercial_space_type
+            ? [...RETAIL_UNIT_TYPES, ...HOSPITALITY_SPACE_TYPES].find((option) => option.value === unit.commercial_space_type)?.label ?? unit.commercial_space_type
+            : null;
           return <article key={unit.id} data-testid={`row-property-unit-${unit.id}`} className="flex items-center justify-between gap-3 rounded-[9px] border border-[#eeece7] bg-[#fdfdfc] px-3 py-2.5">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-semibold text-[#37342f]">{unit.unit_number}</p>{property.property_type === 'mixed_use_development' && <span className="rounded-full bg-[#f1f0ec] px-2 py-0.5 text-[9px] font-medium text-[#77736d]">{unitTypeLabel(unit.unit_type)}</span>}<span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${unit.status === 'occupied' ? 'bg-[#edf7ef] text-[#327443]' : 'bg-[#eef5fb] text-[#39709c]'}`}>{unit.status === 'occupied' ? 'Rented' : 'Not rented'}</span>{floorLabel && <span className="text-[9px] text-[#8d8981]">{floorLabel}</span>}</div><p className="mt-1 truncate text-[9px] text-[#928d84]">{tenantName ? `Renter: ${tenantName}` : unit.room_count ? `${unit.room_count} rooms` : 'No renter'}{unit.monthly_rent ? ` · ${formatMoney(unit.monthly_rent)}/mo` : ''}{facilitySummary ? ` · ${facilitySummary}` : ''}</p></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-semibold text-[#37342f]">{unit.unit_number}</p>{property.property_type === 'mixed_use_development' && <span className="rounded-full bg-[#f1f0ec] px-2 py-0.5 text-[9px] font-medium text-[#77736d]">{unitTypeLabel(unit.unit_type)}</span>}{commercialSubtypeLabel && <span className="rounded-full bg-[#f6f4ef] px-2 py-0.5 text-[9px] font-medium text-[#77736d]">{commercialSubtypeLabel}</span>}<span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${unit.status === 'occupied' ? 'bg-[#edf7ef] text-[#327443]' : 'bg-[#eef5fb] text-[#39709c]'}`}>{unit.status === 'occupied' ? 'Rented' : 'Not rented'}</span>{floorLabel && <span className="text-[9px] text-[#8d8981]">{floorLabel}</span>}</div><p className="mt-1 truncate text-[9px] text-[#928d84]">{tenantName ? `Renter: ${tenantName}` : unit.room_count ? `${unit.room_count} rooms` : 'No renter'}{unit.monthly_rent ? ` · ${formatMoney(unit.monthly_rent)}/mo` : ''}{facilitySummary ? ` · ${facilitySummary}` : ''}</p></div>
             <div className="flex shrink-0 gap-1"><button type="button" aria-label={`Edit unit ${unit.unit_number}`} data-testid={`button-edit-unit-${unit.id}`} onClick={() => { setFeedback(''); setFormUnit(unit); }} className="flex h-7 w-7 items-center justify-center rounded-[7px] border border-[#e6e3dd] text-[#77736d] hover:bg-[#f2f0ec]"><Pencil size={11} /></button><button type="button" aria-label={`Delete unit ${unit.unit_number}`} data-testid={`button-delete-unit-${unit.id}`} onClick={() => setDeleteUnit(unit)} className="flex h-7 w-7 items-center justify-center rounded-[7px] border border-[#efd0cc] text-[#a33e34] hover:bg-[#fff2f0]"><Trash2 size={11} /></button></div>
           </article>;
         })}
