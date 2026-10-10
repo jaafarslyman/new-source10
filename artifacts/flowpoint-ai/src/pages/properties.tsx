@@ -22,6 +22,7 @@ import {
   propertyCategoryLabel,
   propertyStatusLabel,
   propertyTypeLabel,
+  mixedUseOwnershipScopeValues,
   type Property,
   type PropertyDraft,
 } from '@/lib/propertiesTypes';
@@ -146,6 +147,17 @@ function validateApartmentOwnerScopes(owners: PropertyOwnerDraft[], propertyUnit
     if (matches.length !== 1) return `Unit ${unit.unit_number} must match exactly one building owner scope before ownership can be saved.`;
   }
   return null;
+}
+
+function validateMixedUseOwnerScopes(ownerDrafts: PropertyOwnerDraft[], components: string[]) {
+  if (!ownerDrafts.length) return 'Add at least one owner.';
+  if (ownerDrafts.length === 1) return null;
+  const validComponents = new Set(components);
+  const ownerScopes = ownerDrafts.map((owner) => mixedUseOwnershipScopeValues(owner.ownership_scope)
+    .filter((component) => validComponents.has(component)));
+  if (ownerScopes.some((scope) => !scope.length)) return 'Choose at least one included use for every owner.';
+  const unassigned = components.filter((component) => !ownerScopes.some((scope) => scope.includes(component)));
+  return unassigned.length ? `Assign every included use to an owner: ${unassigned.join(', ')}.` : null;
 }
 
 function StatusPill({ status }: { status: string | null }) {
@@ -320,8 +332,10 @@ export default function PropertiesPage() {
   ) => {
     const resolvedContacts = [...contacts];
     const relationshipRows: Array<Record<string, unknown>> = [];
+    const ownerContactIds: string[] = [];
     for (const owner of ownerDrafts) {
       const contact = await resolveContact(owner, 'owner', resolvedContacts);
+      ownerContactIds.push(String(contact.id));
       relationshipRows.push({
         contact_id: contact.id,
         property_id: propertyId,
@@ -360,7 +374,7 @@ export default function PropertiesPage() {
       ...current.filter((item) => !(item.property_id === propertyId && !item.unit_id && (item.relationship_type === 'owner' || item.relationship_type === 'tenant'))),
       ...((data as ContactPropertyRelationship[]) ?? []),
     ]);
-    return resolvedContacts;
+    return { contacts: resolvedContacts, ownerContactIds };
   };
 
   const saveProperty = async (draft: PropertyDraft, ownerDrafts: PropertyOwnerDraft[], renterDraft: PropertyRenterDraft | null, inlineUnits: UnitSavePayload[]) => {
@@ -373,6 +387,10 @@ export default function PropertiesPage() {
       const scopeError = validateApartmentOwnerScopes(ownerDrafts, currentUnits, Number(draft.units_count));
       if (scopeError) throw new Error(scopeError);
     }
+    if (draft.property_type === 'mixed_use_development') {
+      const scopeError = validateMixedUseOwnerScopes(ownerDrafts, draft.mixed_use_components ?? []);
+      if (scopeError) throw new Error(scopeError);
+    }
     const duplicateOwner = ownerDrafts.filter((owner) => owner.source === 'existing').some((owner, index, list) => list.findIndex((item) => item.contact_id === owner.contact_id) !== index);
     if (duplicateOwner) throw new Error('Each owner can only be added once.');
 
@@ -382,9 +400,23 @@ export default function PropertiesPage() {
     if (saveResult.error) throw new Error(saveResult.error.message);
     const saved = saveResult.data as Property;
     try {
-      let contactCache = await syncPropertyRelationships(saved.id, saved.property_type, ownerDrafts, renterDraft);
+      const syncedContacts = await syncPropertyRelationships(saved.id, saved.property_type, ownerDrafts, renterDraft);
+      const contactCache = syncedContacts.contacts;
+      const syntheticOwnerIds = new Map<string, string>();
+      ownerDrafts.forEach((owner, index) => {
+        const resolvedId = syncedContacts.ownerContactIds[index];
+        if (owner.source === 'new' && resolvedId) syntheticOwnerIds.set(String(owner.temp_contact_id ?? -(index + 1)), resolvedId);
+      });
       for (const payload of inlineUnits) {
-        await saveUnit({ ...payload, draft: { ...payload.draft, property_id: saved.id } }, null, contactCache);
+        const resolvedPayload = {
+          ...payload,
+          owners: payload.owners.map((owner) => {
+            const contactId = syntheticOwnerIds.get(owner.contact_id);
+            return contactId ? { ...owner, source: 'existing' as const, contact_id: contactId } : owner;
+          }),
+          draft: { ...payload.draft, property_id: saved.id },
+        };
+        await saveUnit(resolvedPayload, null, contactCache, saved.property_type);
       }
     } catch (saveError) {
       if (!current) {
@@ -401,12 +433,14 @@ export default function PropertiesPage() {
     setFeedback({ tone: 'success', message: current ? 'Property changes saved.' : 'Property added.' });
   };
 
-  const saveUnit = async (payload: UnitSavePayload, existingUnit: Unit | null, contactCache?: Contact[]) => {
+  const saveUnit = async (payload: UnitSavePayload, existingUnit: Unit | null, contactCache?: Contact[], propertyTypeOverride?: string | null) => {
     const unitResult = existingUnit
       ? await supabase.from('units').update(payload.draft).eq('id', existingUnit.id).select().single()
       : await supabase.from('units').insert([payload.draft]).select().single();
     if (unitResult.error) throw new Error(unitResult.error.message);
     const savedUnit = unitResult.data as Unit;
+    const unitPropertyType = propertyTypeOverride ?? properties.find((item) => item.id === savedUnit.property_id)?.property_type ?? null;
+    const isMixedUseSpace = unitPropertyType === 'mixed_use_development';
     const resolvedContacts = contactCache ?? [...contacts];
     try {
       const rows: Array<Record<string, unknown>> = [];
@@ -421,8 +455,8 @@ export default function PropertiesPage() {
             start_date: null,
             end_date: null,
             notes: null,
-            ownership_percentage: Number(owner.ownership_percentage),
-            ownership_scope: null,
+            ownership_percentage: isMixedUseSpace || !owner.ownership_percentage.trim() ? null : Number(owner.ownership_percentage),
+            ownership_scope: isMixedUseSpace ? 'Entire space' : null,
           });
         }
       }

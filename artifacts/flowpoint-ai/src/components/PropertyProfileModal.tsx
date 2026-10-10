@@ -5,7 +5,7 @@ import {
   UserRound, Users, Wrench, X, Zap,
 } from 'lucide-react';
 import {
-  HOSPITALITY_SPACE_TYPES, MIXED_USE_COMPONENTS, propertyAddress, propertyCategoryLabel, propertyStatusLabel, propertyTypeLabel, RETAIL_CENTER_TYPES, type Property,
+  HOSPITALITY_SPACE_TYPES, MIXED_USE_COMPONENTS, mixedUseOwnershipScopeLabel, propertyAddress, propertyCategoryLabel, propertyStatusLabel, propertyTypeLabel, RETAIL_CENTER_TYPES, type Property,
 } from '@/lib/propertiesTypes';
 import type { Contact, ContactPropertyRelationship } from '@/lib/contactsTypes';
 import type { Unit } from '@/lib/unitsTypes';
@@ -65,7 +65,9 @@ function PropertyOwners({ property, contacts, ownerships }: { property: Property
       const contact = contacts.find((item) => item.id === relationship.contact_id);
       const ownership = relationship.ownership_percentage !== null && relationship.ownership_percentage !== undefined
         ? `${relationship.ownership_percentage}% ownership`
-        : relationship.ownership_scope || 'Ownership details unavailable';
+        : property.property_type === 'mixed_use_development'
+          ? mixedUseOwnershipScopeLabel(relationship.ownership_scope) || 'Ownership details unavailable'
+          : relationship.ownership_scope || 'Ownership details unavailable';
       return <div key={relationship.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-[#f0eeeb] px-3 py-2.5"><div className="flex min-w-0 items-center gap-2.5"><div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#f1eee9] text-[#706b62]"><UserRound size={14} /></div><div className="min-w-0"><p className="truncate text-[12px] font-semibold text-[#35322e]">{contact?.name ?? 'Contact unavailable'}</p><p className="mt-0.5 truncate text-[10px] text-[#9b968d]">{contact?.email ?? contact?.phone ?? 'No contact details'}</p></div></div><span className="max-w-[45%] text-right text-[10px] font-semibold text-[#625e57]">{ownership}</span></div>;
     })}</div>}
   </section>;

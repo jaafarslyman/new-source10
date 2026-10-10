@@ -78,6 +78,20 @@ export const HOME_FACILITIES = [
   { value: 'garage', label: 'Garage' },
   { value: 'solar_panels', label: 'Solar panels' },
   { value: 'fence', label: 'Fence' },
+  { value: 'driveway', label: 'Driveway' },
+  { value: 'patio', label: 'Patio' },
+  { value: 'deck', label: 'Deck' },
+  { value: 'balcony', label: 'Balcony' },
+  { value: 'swimming_pool', label: 'Swimming pool' },
+  { value: 'outdoor_kitchen', label: 'Outdoor kitchen' },
+  { value: 'fireplace', label: 'Fireplace' },
+  { value: 'central_air', label: 'Central air conditioning' },
+  { value: 'in_unit_laundry', label: 'In-unit laundry' },
+  { value: 'basement', label: 'Basement' },
+  { value: 'attic', label: 'Attic' },
+  { value: 'storage_shed', label: 'Storage shed' },
+  { value: 'security_cameras', label: 'Security cameras' },
+  { value: 'sprinkler_system', label: 'Sprinkler system' },
 ] as const;
 
 export const APARTMENT_BUILDING_FACILITIES = [
@@ -86,6 +100,17 @@ export const APARTMENT_BUILDING_FACILITIES = [
   { value: 'gym', label: 'Gym' },
   { value: 'sauna', label: 'Sauna' },
   { value: 'rooftop', label: 'Rooftop' },
+  { value: 'lobby', label: 'Lobby' },
+  { value: 'concierge', label: 'Concierge / doorman' },
+  { value: 'package_room', label: 'Package room' },
+  { value: 'mailroom', label: 'Mailroom' },
+  { value: 'shared_laundry', label: 'Shared laundry room' },
+  { value: 'bike_storage', label: 'Bicycle storage' },
+  { value: 'community_room', label: 'Community room' },
+  { value: 'courtyard', label: 'Courtyard' },
+  { value: 'ev_charging', label: 'EV charging' },
+  { value: 'backup_generator', label: 'Backup generator' },
+  { value: 'trash_chute', label: 'Trash chute' },
 ] as const;
 
 export const COMMERCIAL_FACILITIES = [
@@ -97,6 +122,107 @@ export const COMMERCIAL_FACILITIES = [
   { value: 'shared_restrooms', label: 'Shared restrooms' },
   { value: 'loading_dock', label: 'Loading dock' },
   { value: 'hvac', label: 'HVAC' },
+  { value: 'access_control', label: 'Access control' },
+  { value: 'surveillance', label: 'Video surveillance' },
+  { value: 'high_speed_internet', label: 'High-speed internet' },
+  { value: 'backup_generator', label: 'Backup generator' },
+  { value: 'accessible_entry', label: 'Accessible entrance' },
+  { value: 'fire_sprinklers', label: 'Fire sprinklers' },
+  { value: 'waste_management', label: 'Waste management' },
+  { value: 'ev_charging', label: 'EV charging' },
+] as const;
+
+export const OFFICE_FACILITIES = [
+  { value: 'private_offices', label: 'Private offices' },
+  { value: 'coworking_area', label: 'Coworking area' },
+  { value: 'boardroom', label: 'Boardroom' },
+  { value: 'phone_booths', label: 'Phone booths' },
+  { value: 'breakroom', label: 'Breakroom' },
+  { value: 'kitchenette', label: 'Kitchenette' },
+  { value: 'server_room', label: 'Server / IT room' },
+  { value: 'reception_area', label: 'Reception area' },
+  { value: 'tenant_lounge', label: 'Tenant lounge' },
+  { value: 'secure_entry', label: 'Secure entry' },
+  { value: 'mailroom', label: 'Mailroom' },
+] as const;
+
+export const RETAIL_CENTER_FACILITIES = [
+  { value: 'food_court', label: 'Food court' },
+  { value: 'escalators', label: 'Escalators' },
+  { value: 'public_plaza', label: 'Public plaza' },
+  { value: 'wayfinding_signage', label: 'Wayfinding signage' },
+  { value: 'directory_kiosk', label: 'Directory kiosk' },
+  { value: 'customer_parking', label: 'Customer parking' },
+  { value: 'customer_restrooms', label: 'Customer restrooms' },
+  { value: 'cart_storage', label: 'Shopping-cart storage' },
+  { value: 'tenant_storage', label: 'Tenant storage' },
+  { value: 'waste_compactor', label: 'Waste compactor' },
+] as const;
+
+export const RETAIL_UNIT_FACILITIES = [
+  { value: 'storefront', label: 'Storefront' },
+  { value: 'display_windows', label: 'Display windows' },
+  { value: 'stockroom', label: 'Stockroom' },
+  { value: 'fitting_rooms', label: 'Fitting rooms' },
+  { value: 'point_of_sale', label: 'Point-of-sale system' },
+  { value: 'customer_pickup', label: 'Customer pickup area' },
+  { value: 'delivery_access', label: 'Delivery access' },
+  { value: 'refrigeration', label: 'Commercial refrigeration' },
+  { value: 'roll_down_shutters', label: 'Roll-down security shutters' },
+] as const;
+
+export const HOSPITALITY_FACILITIES = [
+  { value: 'commercial_kitchen', label: 'Commercial kitchen' },
+  { value: 'hood_ventilation', label: 'Kitchen hood / ventilation' },
+  { value: 'grease_interceptor', label: 'Grease interceptor' },
+  { value: 'walk_in_cooler', label: 'Walk-in cooler' },
+  { value: 'bar_area', label: 'Bar area' },
+  { value: 'dining_area', label: 'Dining area' },
+  { value: 'outdoor_seating', label: 'Outdoor seating' },
+  { value: 'delivery_pickup', label: 'Delivery pickup area' },
+  { value: 'event_space', label: 'Event space' },
+  { value: 'catering_prep', label: 'Catering preparation area' },
+] as const;
+
+export const WAREHOUSE_FACILITIES = [
+  { value: 'dock_doors', label: 'Dock doors' },
+  { value: 'grade_level_loading', label: 'Grade-level loading' },
+  { value: 'truck_court', label: 'Truck court' },
+  { value: 'forklift_charging', label: 'Forklift charging' },
+  { value: 'pallet_racking', label: 'Pallet racking' },
+  { value: 'clear_height', label: 'High-clearance storage' },
+  { value: 'heavy_power', label: 'Heavy electrical capacity' },
+  { value: 'climate_controlled_storage', label: 'Climate-controlled storage' },
+  { value: 'hazmat_storage', label: 'Hazardous-material storage' },
+  { value: 'vehicle_access', label: 'Large-vehicle access' },
+] as const;
+
+export const DISTRIBUTION_CENTER_FACILITIES = [
+  { value: 'cross_dock', label: 'Cross-dock area' },
+  { value: 'truck_scale', label: 'Truck scale' },
+  { value: 'conveyor_system', label: 'Conveyor system' },
+  { value: 'sorting_area', label: 'Sorting area' },
+  { value: 'fleet_parking', label: 'Fleet parking' },
+  { value: 'loading_bays', label: 'Loading bays' },
+] as const;
+
+export const MANUFACTURING_PLANT_FACILITIES = [
+  { value: 'three_phase_power', label: 'Three-phase power' },
+  { value: 'production_floor', label: 'Production floor' },
+  { value: 'overhead_crane', label: 'Overhead crane' },
+  { value: 'compressed_air', label: 'Compressed air' },
+  { value: 'process_ventilation', label: 'Process ventilation' },
+  { value: 'machine_shop', label: 'Machine shop' },
+  { value: 'utility_capacity', label: 'Industrial utility capacity' },
+] as const;
+
+export const RESEARCH_FACILITY_FACILITIES = [
+  { value: 'laboratory', label: 'Laboratory' },
+  { value: 'clean_room', label: 'Clean room' },
+  { value: 'specialized_ventilation', label: 'Specialized ventilation' },
+  { value: 'testing_chambers', label: 'Testing chambers' },
+  { value: 'secure_research_area', label: 'Secure research area' },
+  { value: 'data_center', label: 'Data center' },
 ] as const;
 
 export const RETAIL_CENTER_TYPES = [
@@ -105,6 +231,13 @@ export const RETAIL_CENTER_TYPES = [
   { value: 'shopping_center', label: 'Shopping center' },
   { value: 'outlet_center', label: 'Outlet center' },
   { value: 'market_hall', label: 'Market hall' },
+  { value: 'neighborhood_center', label: 'Neighborhood shopping center' },
+  { value: 'community_center', label: 'Community shopping center' },
+  { value: 'power_center', label: 'Power center / big-box retail' },
+  { value: 'lifestyle_center', label: 'Lifestyle center' },
+  { value: 'open_air_center', label: 'Open-air retail center' },
+  { value: 'specialty_center', label: 'Specialty retail center' },
+  { value: 'retail_park', label: 'Retail park' },
   { value: 'other', label: 'Other' },
 ] as const;
 
@@ -115,6 +248,16 @@ export const RETAIL_UNIT_TYPES = [
   { value: 'department_store', label: 'Department store' },
   { value: 'pharmacy', label: 'Pharmacy' },
   { value: 'showroom', label: 'Showroom' },
+  { value: 'bookstore', label: 'Bookstore' },
+  { value: 'clothing_store', label: 'Clothing store' },
+  { value: 'electronics_store', label: 'Electronics store' },
+  { value: 'furniture_store', label: 'Furniture / home goods store' },
+  { value: 'specialty_food_store', label: 'Specialty food store' },
+  { value: 'jewelry_store', label: 'Jewelry store' },
+  { value: 'beauty_store', label: 'Beauty / cosmetics store' },
+  { value: 'sporting_goods_store', label: 'Sporting goods store' },
+  { value: 'pet_supply_store', label: 'Pet supply store' },
+  { value: 'salon_or_service', label: 'Salon or retail service' },
   { value: 'other', label: 'Other' },
 ] as const;
 
@@ -135,6 +278,21 @@ export const MIXED_USE_COMPONENTS = [
   { value: 'restaurant_hospitality', label: 'Restaurants & hospitality' },
   { value: 'warehouse', label: 'Warehouses' },
 ] as const;
+
+export function mixedUseOwnershipScopeValues(scope: string | null | undefined) {
+  const validValues = new Set(MIXED_USE_COMPONENTS.map((component) => component.value));
+  return (scope ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => validValues.has(value as (typeof MIXED_USE_COMPONENTS)[number]['value']));
+}
+
+export function mixedUseOwnershipScopeLabel(scope: string | null | undefined) {
+  const labels = mixedUseOwnershipScopeValues(scope)
+    .map((value) => MIXED_USE_COMPONENTS.find((component) => component.value === value)?.label)
+    .filter((label) => label !== undefined);
+  return labels.length ? labels.join(', ') : scope ?? '';
+}
 
 export const PROPERTY_STATUSES = [
   { value: 'active', label: 'Active' },
